@@ -9,6 +9,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
+  <!-- <style>
+    #password-modal, #camera-modal {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 1000; /* Ensure it appears above other content */
+    }
+    video {
+      width: 100%; /* Make video responsive */
+      height: auto;
+    }
+  </style> -->
 </head>
 <body class="font-roboto bg-gray-100">
   <header class="bg-green-600 text-white p-4">
@@ -29,7 +47,7 @@
   </header>
   <main class="container mx-auto p-4">
     <section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4" id="product-list">
-      <!-- Existing products will appear here -->
+      <!-- Existing products here -->
     </section>
     <div class="flex justify-between items-center mt-4">
       <button class="bg-gray-600 text-white px-4 py-2 rounded" id="prev-page">Previous</button>
@@ -68,8 +86,7 @@
         </div>
         <div class="mb-4">
           <label class="block text-gray-700">Price</label>
-          <!-- Minimum price is 0 -->
-          <input type="number" id="new-product-price" class="border border-gray-400 p-2 rounded w-full" min="0">
+          <input type="number" id="new-product-price" class="border border-gray-400 p-2 rounded w-full">
         </div>
         <div class="mb-4">
           <label class="block text-gray-700">Image</label>
@@ -77,8 +94,7 @@
         </div>
         <div class="mb-4">
           <label class="block text-gray-700">Inventory</label>
-          <!-- Inventory must be at least 1 -->
-          <input type="number" id="new-product-inventory" class="border border-gray-400 p-2 rounded w-full" min="1">
+          <input type="number" id="new-product-inventory" class="border border-gray-400 p-2 rounded w-full">
         </div>
         <button class="bg-green-600 text-white px-4 py-2 rounded" id="add-new-product">Add Product</button>
       </div>
@@ -116,47 +132,34 @@
     let cart = [];
     let products = [];
     let currentPage = 1;
-    const itemsPerPage = 1;            // Items per page 8
+    const itemsPerPage = 8;
     const adminPassword = "admin123"; // Change this to your desired password
 
-    // Search functionality: re-render products on search input
-    document.getElementById('search-bar').addEventListener('input', () => {
-      currentPage = 1;
-      renderProducts();
-    });
-
     document.getElementById('add-new-product').addEventListener('click', () => {
-      const productName = document.getElementById('new-product-name').value.trim();
+      const productName = document.getElementById('new-product-name').value;
       const productPrice = parseFloat(document.getElementById('new-product-price').value);
       const productImageInput = document.getElementById('new-product-image');
       const productInventory = parseInt(document.getElementById('new-product-inventory').value);
-
-      // Validate fields: name must be non-empty, price must be non-negative, and inventory must be at least 1.
-      if (!productName || isNaN(productPrice) || isNaN(productInventory)) {
-        alert('Please fill in all fields.');
-        return;
-      }
-      if (productPrice < 0 || productInventory <= 0) {
-        alert('Price must be 0 or greater and Inventory must be at least 1.');
-        return;
-      }
-      
-      // Check for duplicate product name (case insensitive)
-      if (products.some(product => product.productName.toLowerCase() === productName.toLowerCase())) {
-        alert('Product with the same name already exists.');
-        return;
-      }
-
       let productImage = '';
-      if (productImageInput.files && productImageInput.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          productImage = e.target.result;
+
+      if (productName && !isNaN(productPrice) && !isNaN(productInventory)) {
+        if (products.some(product => product.productName.toLowerCase() === productName.toLowerCase())) {
+          alert('Product with the same name already exists.');
+          return;
+        }
+
+        if (productImageInput.files && productImageInput.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            productImage = e.target.result;
+            addProductToList(productName, productPrice, productImage, productInventory);
+          };
+          reader.readAsDataURL(productImageInput.files[0]);
+        } else {
           addProductToList(productName, productPrice, productImage, productInventory);
-        };
-        reader.readAsDataURL(productImageInput.files[0]);
+        }
       } else {
-        addProductToList(productName, productPrice, productImage, productInventory);
+        alert('Please fill in all fields.');
       }
     });
 
@@ -173,13 +176,9 @@
       const productList = document.getElementById('product-list');
       productList.innerHTML = '';
 
-      // Apply search filter
-      const searchText = document.getElementById('search-bar').value.toLowerCase();
-      const filteredProducts = products.filter(product => product.productName.toLowerCase().includes(searchText));
-
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
-      const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+      const paginatedProducts = products.slice(startIndex, endIndex);
 
       paginatedProducts.forEach(product => {
         const newProduct = document.createElement('div');
@@ -194,27 +193,25 @@
         `;
         productList.appendChild(newProduct);
 
-        // Add-to-cart: only allow adding if inventory is available
         newProduct.querySelector('.add-to-cart').addEventListener('click', () => {
-          if (product.productInventory <= 0) {
-            alert('Product is out of stock');
-            return;
-          }
           const existingItem = cart.find(item => item.product === product.productName);
+
           if (existingItem) {
             existingItem.quantity += 1;
           } else {
             cart.push({ product: product.productName, price: product.productPrice, quantity: 1 });
           }
-          // Reduce inventory by 1 (ensuring inventory does not become negative)
-          product.productInventory = Math.max(0, product.productInventory - 1);
+
+          product.productInventory -= 1; // Decrease inventory
           updateCart();
           renderProducts();
         });
 
-        // Edit product: validate changes to avoid negative values
         newProduct.querySelector('.edit-product').addEventListener('click', () => {
+          // Show the password modal
           document.getElementById('password-modal').classList.remove('hidden');
+
+          // Handle the submit button click
           document.getElementById('submit-password').onclick = () => {
             const password = document.getElementById('admin-password-input').value;
             if (password === adminPassword) {
@@ -222,68 +219,64 @@
               const newPrice = parseFloat(prompt('Enter new product price:', product.productPrice));
               const newInventory = parseInt(prompt('Enter new product inventory:', product.productInventory));
               const newImageOption = confirm('Do you want to change the image? Click OK for Camera or Cancel for File Upload.');
-              
-              if (!newName || isNaN(newPrice) || isNaN(newInventory)) {
-                alert('Invalid input.');
-                closePasswordModal();
-                return;
-              }
-              if (newPrice < 0 || newInventory <= 0) {
-                alert('Price must be 0 or greater and Inventory must be at least 1.');
-                closePasswordModal();
-                return;
-              }
 
-              product.productName = newName;
-              product.productPrice = newPrice;
-              product.productInventory = newInventory;
+              if (newName && !isNaN(newPrice) && !isNaN(newInventory)) {
+                product.productName = newName;
+                product.productPrice = newPrice;
+                product.productInventory = newInventory;
 
-              if (newImageOption) {
-                // Open camera modal
-                openCameraModal(product);
-              } else {
-                // Open file upload prompt for new image
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = 'image/*';
-                fileInput.onchange = (event) => {
-                  const reader = new FileReader();
-                  reader.onload = function(e) {
-                    product.productImage = e.target.result;
-                    renderProducts();
+                if (newImageOption) {
+                  // Open camera modal
+                  openCameraModal(product);
+                } else {
+                  // Open file input
+                  const fileInput = document.createElement('input');
+                  fileInput.type = 'file';
+                  fileInput.accept = 'image/*';
+                  fileInput.onchange = (event) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                      product.productImage = e.target.result;
+                      renderProducts();
+                    };
+                    reader.readAsDataURL(event.target.files[0]);
                   };
-                  reader.readAsDataURL(event.target.files[0]);
-                };
-                fileInput.click();
+                  fileInput.click();
+                }
+                renderProducts();
+              } else {
+                alert('Invalid input.');
               }
-              renderProducts();
             } else {
               alert('Incorrect password.');
             }
-            closePasswordModal();
+            // Hide the modal after checking
+            document.getElementById('password-modal').classList.add('hidden');
+            document.getElementById('admin-password-input').value = ''; // Clear the input
           };
 
-          document.getElementById('cancel-password').onclick = closePasswordModal;
-          
-          function closePasswordModal() {
+          // Handle the cancel button click
+          document.getElementById('cancel-password').onclick = () => {
             document.getElementById('password-modal').classList.add('hidden');
-            document.getElementById('admin-password-input').value = '';
-          }
+            document.getElementById('admin-password-input').value = ''; // Clear the input
+          };
         });
       });
 
-      // Update pagination button states based on filtered products
       document.getElementById('prev-page').disabled = currentPage === 1;
-      document.getElementById('next-page').disabled = endIndex >= filteredProducts.length;
+      document.getElementById('next-page').disabled = endIndex >= products.length;
     }
 
     function updateCart() {
       const cartItems = document.getElementById('cart-items');
       cartItems.innerHTML = '';
+
       let total = 0;
+
       cart.forEach(item => {
         const itemTotal = item.price * item.quantity;
         total += itemTotal;
+
         const row = document.createElement('tr');
         row.innerHTML = `
           <td class="p-2">${item.product}</td>
@@ -298,26 +291,14 @@
         `;
         cartItems.appendChild(row);
       });
+
       document.getElementById('cart-total').innerText = `Total: ₹${total.toFixed(2)}`;
     }
 
-    // When removing an item from the cart, we no longer modify the product's inventory.
-    function removeFromCart(productName) {
-      cart = cart.filter(item => item.product !== productName);
+    function removeFromCart(product) {
+      cart = cart.filter(item => item.product !== product);
       updateCart();
     }
-
-    document.getElementById('prev-page').addEventListener('click', () => {
-      if (currentPage > 1) {
-        currentPage--;
-        renderProducts();
-      }
-    });
-
-    document.getElementById('next-page').addEventListener('click', () => {
-      currentPage++;
-      renderProducts();
-    });
 
     document.getElementById('export-excel').addEventListener('click', () => {
       const ws = XLSX.utils.json_to_sheet(cart.map(item => ({
@@ -334,12 +315,15 @@
     document.getElementById('export-pdf').addEventListener('click', async () => {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
+
       doc.text('Cart', 10, 10);
       let y = 20;
+
       cart.forEach(item => {
         doc.text(`${item.product} - Rs.${item.price.toFixed(2)} x ${item.quantity} = Rs.${(item.price * item.quantity).toFixed(2)}`, 10, y);
         y += 10;
       });
+
       doc.save('cart.pdf');
     });
 
@@ -349,8 +333,9 @@
       const canvas = document.getElementById('canvas');
       const captureButton = document.getElementById('capture');
 
+      // Access the back camera
       navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } }
+        video: { facingMode: { exact: "environment" } } // Only access the back camera
       })
       .then((stream) => {
         video.srcObject = stream;
@@ -362,8 +347,6 @@
 
       captureButton.onclick = () => {
         const context = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = canvas.toDataURL('image/png');
         product.productImage = imageData;
@@ -374,9 +357,7 @@
       document.getElementById('close-camera').onclick = closeCamera;
 
       function closeCamera() {
-        if(video.srcObject) {
-          video.srcObject.getTracks().forEach(track => track.stop());
-        }
+        video.srcObject.getTracks().forEach(track => track.stop());
         document.getElementById('camera-modal').classList.add('hidden');
       }
     }
