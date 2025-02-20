@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Offline Grocery Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
+</head>
+<body class="font-roboto bg-gray-100">
+  <header class="bg-green-600 text-white p-4">
+    <div class="container mx-auto flex justify-between items-center">
+      <div class="flex items-center space-x-4">
+        <h1 class="text-2xl font-bold">Grocery Store</h1>
+      </div>
+      <input class="border border-gray-400 p-2 rounded text-black mx-auto" id="search-bar" placeholder="Search..." type="text">
+      <nav>
+        <ul class="flex space-x-4">
+          <li><a class="hover:underline" href="#">Home</a></li>
+          <li><a class="hover:underline" href="#">Products</a></li>
+          <li><a class="hover:underline" href="#">Cart</a></li>
+          <li><a class="hover:underline" href="#">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main class="container mx-auto p-4">
+    <section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4" id="product-list">
+      <!-- Existing products here -->
+    </section>
+    <div class="flex justify-between items-center mt-4">
+      <button class="bg-gray-600 text-white px-4 py-2 rounded" id="prev-page">Previous</button>
+      <button class="bg-gray-600 text-white px-4 py-2 rounded" id="next-page">Next</button>
+    </div>
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold mb-4">Cart</h2>
+      <div class="bg-white p-4 rounded shadow">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="text-left p-2">Product</th>
+              <th class="text-left p-2">Price</th>
+              <th class="text-left p-2">Quantity</th>
+              <th class="text-left p-2">Total</th>
+              <th class="text-left p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cart-items"></tbody>
+        </table>
+        <div class="flex justify-between items-center mt-4">
+          <p class="text-xl font-bold" id="cart-total">Total: ₹0.00</p>
+          <div>
+            <button class="bg-blue-600 text-white px-4 py-2 rounded mr-2" id="export-excel">Export to Excel</button>
+            <button class="bg-red-600 text-white px-4 py-2 rounded" id="export-pdf">Export to PDF</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold mb-4">Add New Product</h2>
+      <div class="bg-white p-4 rounded shadow">
+        <div class="mb-4">
+          <label class="block text-gray-700">Product Name</label>
+          <input type="text" id="new-product-name" class="border border-gray-400 p-2 rounded w-full">
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Price</label>
+          <input type="number" id="new-product-price" class="border border-gray-400 p-2 rounded w-full">
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Image</label>
+          <input type="file" id="new-product-image" class="border border-gray-400 p-2 rounded w-full" accept="image/*">
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700">Inventory</label>
+          <input type="number" id="new-product-inventory" class="border border-gray-400 p-2 rounded w-full">
+        </div>
+        <button class="bg-green-600 text-white px-4 py-2 rounded" id="add-new-product">Add Product</button>
+      </div>
+    </section>
+  </main>
+  <footer class="bg-green-600 text-white p-4 mt-8">
+    <div class="container mx-auto text-center">
+    </div>
+  </footer>
+
+  <!-- Password Modal -->
+  <div id="password-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-bold mb-4">Enter Admin Password</h2>
+      <input type="password" id="admin-password-input" class="border border-gray-400 p-2 rounded w-full" placeholder="Password">
+      <div class="flex justify-end mt-4">
+        <button id="submit-password" class="bg-green-600 text-white px-4 py-2 rounded">Submit</button>
+        <button id="cancel-password" class="bg-red-600 text-white px-4 py-2 rounded ml-2">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Modal -->
+  <div id="camera-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-bold mb-4">Capture Image</h2>
+      <video id="video" width="300" height="200" autoplay></video>
+      <button id="capture" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">Capture</button>
+      <button id="close-camera" class="bg-red-600 text-white px-4 py-2 rounded mt-2">Close</button>
+      <canvas id="canvas" class="hidden"></canvas>
+    </div>
+  </div>
+
+  <script>
+    let cart = [];
+    let products = [];
+    let currentPage = 1;
+    const itemsPerPage = 8;
+    const adminPassword = "admin123"; // Change this to your desired password
+
+    document.getElementById('add-new-product').addEventListener('click', () => {
+      const productName = document.getElementById('new-product-name').value;
+      const productPrice = parseFloat(document.getElementById('new-product-price').value);
+      const productImageInput = document.getElementById('new-product-image');
+      const productInventory = parseInt(document.getElementById('new-product-inventory').value);
+      let productImage = '';
+
+      if (productName && !isNaN(productPrice) && !isNaN(productInventory)) {
+        if (products.some(product => product.productName.toLowerCase() === productName.toLowerCase())) {
+          alert('Product with the same name already exists.');
+          return;
+        }
+
+        if (productImageInput.files && productImageInput.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            productImage = e.target.result;
+            addProductToList(productName, productPrice, productImage, productInventory);
+          };
+          reader.readAsDataURL(productImageInput.files[0]);
+        } else {
+          addProductToList(productName, productPrice, productImage, productInventory);
+        }
+      } else {
+        alert('Please fill in all fields.');
+      }
+    });
+
+    function addProductToList(productName, productPrice, productImage, productInventory) {
+      products.push({ productName, productPrice, productImage, productInventory });
+      renderProducts();
+      document.getElementById('new-product-name').value = '';
+      document.getElementById('new-product-price').value = '';
+      document.getElementById('new-product-image').value = '';
+      document.getElementById('new-product-inventory').value = '';
+    }
+
+    function renderProducts() {
+      const productList = document.getElementById('product-list');
+      productList.innerHTML = '';
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedProducts = products.slice(startIndex, endIndex);
+
+      paginatedProducts.forEach(product => {
+        const newProduct = document.createElement('div');
+        newProduct.className = 'bg-white p-4 rounded shadow';
+        newProduct.innerHTML = `
+          <img alt="Image of ${product.productName}" class="w-full h-48 object-cover rounded" height="200" src="${product.productImage || 'https://via.placeholder.com/300x200'}" width="300"/>
+          <h2 class="text-xl font-bold mt-2">${product.productName}</h2>
+          <p class="text-gray-700">₹${product.productPrice.toFixed(2)} / lb</p>
+          <p class="text-gray-700">Inventory: ${product.productInventory}</p>
+          <button class="bg-green-600 text-white px-4 py-2 rounded mt-2 add-to-cart" data-product="${product.productName}" data-price="${product.productPrice.toFixed(2)}">Add to Cart</button>
+          <button class="bg-yellow-600 text-white px-4 py-2 rounded mt-2 edit-product" data-product="${product.productName}">Edit</button>
+        `;
+        productList.appendChild(newProduct);
+
+        newProduct.querySelector('.add-to-cart').addEventListener('click', () => {
+          const existingItem = cart.find(item => item.product === product.productName);
+
+          if (existingItem) {
+            existingItem.quantity += 1;
+          } else {
+            cart.push({ product: product.productName, price: product.productPrice, quantity: 1 });
+          }
+
+          product.productInventory -= 1; // Decrease inventory
+          updateCart();
+          renderProducts();
+        });
+
+        newProduct.querySelector('.edit-product').addEventListener('click', () => {
+          // Show the password modal
+          document.getElementById('password-modal').classList.remove('hidden');
+
+          // Handle the submit button click
+          document.getElementById('submit-password').onclick = () => {
+            const password = document.getElementById('admin-password-input').value;
+            if (password === adminPassword) {
+              const newName = prompt('Enter new product name:', product.productName);
+              const newPrice = parseFloat(prompt('Enter new product price:', product.productPrice));
+              const newInventory = parseInt(prompt('Enter new product inventory:', product.productInventory));
+              const newImageOption = confirm('Do you want to change the image? Click OK for Camera or Cancel for File Upload.');
+
+              if (newName && !isNaN(newPrice) && !isNaN(newInventory)) {
+                product.productName = newName;
+                product.productPrice = newPrice;
+                product.productInventory = newInventory;
+
+                if (newImageOption) {
+                  // Open camera modal
+                  openCameraModal(product);
+                } else {
+                  // Open file input
+                  const fileInput = document.createElement('input');
+                  fileInput.type = 'file';
+                  fileInput.accept = 'image/*';
+                  fileInput.onchange = (event) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                      product.productImage = e.target.result;
+                      renderProducts();
+                    };
+                    reader.readAsDataURL(event.target.files[0]);
+                  };
+                  fileInput.click();
+                }
+                renderProducts();
+              } else {
+                alert('Invalid input.');
+              }
+            } else {
+              alert('Incorrect password.');
+            }
+            // Hide the modal after checking
+            document.getElementById('password-modal').classList.add('hidden');
+            document.getElementById('admin-password-input').value = ''; // Clear the input
+          };
+
+          // Handle the cancel button click
+          document.getElementById('cancel-password').onclick = () => {
+            document.getElementById('password-modal').classList.add('hidden');
+            document.getElementById('admin-password-input').value = ''; // Clear the input
+          };
+        });
+      });
+
+      document.getElementById('prev-page').disabled = currentPage === 1;
+      document.getElementById('next-page').disabled = endIndex >= products.length;
+    }
+
+    function updateCart() {
+      const cartItems = document.getElementById('cart-items');
+      cartItems.innerHTML = '';
+
+      let total = 0;
+
+      cart.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-2">${item.product}</td>
+          <td class="p-2">Rs.${item.price.toFixed(2)}</td>
+          <td class="p-2">${item.quantity}</td>
+          <td class="p-2">Rs.${itemTotal.toFixed(2)}</td>
+          <td class="p-2">
+            <button class="text-red-600" onclick="removeFromCart('${item.product}')">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        cartItems.appendChild(row);
+      });
+
+      document.getElementById('cart-total').innerText = `Total: ₹${total.toFixed(2)}`;
+    }
+
+    function removeFromCart(product) {
+      cart = cart.filter(item => item.product !== product);
+      updateCart();
+    }
+
+    document.getElementById('export-excel').addEventListener('click', () => {
+      const ws = XLSX.utils.json_to_sheet(cart.map(item => ({
+        Product: item.product,
+        Price: item.price,
+        Quantity: item.quantity,
+        Total: item.price * item.quantity
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Cart');
+      XLSX.writeFile(wb, 'cart.xlsx');
+    });
+
+    document.getElementById('export-pdf').addEventListener('click', async () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.text('Cart', 10, 10);
+      let y = 20;
+
+      cart.forEach(item => {
+        doc.text(`${item.product} - Rs.${item.price.toFixed(2)} x ${item.quantity} = Rs.${(item.price * item.quantity).toFixed(2)}`, 10, y);
+        y += 10;
+      });
+
+      doc.save('cart.pdf');
+    });
+
+    function openCameraModal(product) {
+      document.getElementById('camera-modal').classList.remove('hidden');
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const captureButton = document.getElementById('capture');
+
+      // Access the camera
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.play();
+        })
+        .catch((err) => {
+          console.error("Error accessing camera: ", err);
+        });
+
+      captureButton.onclick = () => {
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/png');
+        product.productImage = imageData;
+        renderProducts();
+        closeCamera();
+      };
+
+      document.getElementById('close-camera').onclick = closeCamera;
+
+      function closeCamera() {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        document.getElementById('camera-modal').classList.add('hidden');
+      }
+    }
+
+    // Initial render
+    renderProducts();
+  </script>
+</body>
+</html>
