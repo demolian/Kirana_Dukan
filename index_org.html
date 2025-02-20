@@ -9,24 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.3.1/jspdf.umd.min.js"></script>
-  <style>
-    #password-modal, #camera-modal {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 1000; /* Ensure it appears above other content */
-    }
-    video {
-      width: 100%; /* Make video responsive */
-      height: auto;
-    }
-  </style>
 </head>
 <body class="font-roboto bg-gray-100">
   <header class="bg-green-600 text-white p-4">
@@ -333,17 +315,15 @@
       const canvas = document.getElementById('canvas');
       const captureButton = document.getElementById('capture');
 
-      // Access the back camera
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } } // Only access the back camera
-      })
-      .then((stream) => {
-        video.srcObject = stream;
-        video.play();
-      })
-      .catch((err) => {
-        console.error("Error accessing camera: ", err);
-      });
+      // Access the camera
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.play();
+        })
+        .catch((err) => {
+          console.error("Error accessing camera: ", err);
+        });
 
       captureButton.onclick = () => {
         const context = canvas.getContext('2d');
